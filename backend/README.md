@@ -1,16 +1,17 @@
 # Backend
 ## Установка
 ```bash
+cd backend
+```
+
+```bash
 python -m venv venv
 ```
 
 ```bash
-source venv/bin/activate
+venv\Scripts\activate
 ```
 
-```bash
-cd backend
-```
 
 ```bash
 pip install -r requirements.txt
