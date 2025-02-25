@@ -1,0 +1,27 @@
+@import './variables.css';
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  max-width: 1280px;
+  margin: 0 auto;
+  /*padding: 2rem;*/
+}
+
+.auth-form {
+  max-width: 400px;
+  margin: 2rem auto;
+  padding: 2rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.task-list {
+  margin-top: 2rem;
+}

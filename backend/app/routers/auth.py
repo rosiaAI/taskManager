@@ -5,8 +5,8 @@ from sqlalchemy import select
 from datetime import timedelta
 from backend.app.database import get_db
 from backend.app.models.user import User
-from backend.app.schemas.auth import Token
-from backend.app.dependencies import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
+from backend.app.schemas.auth import Token, UserResponse
+from backend.app.dependencies import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
 from passlib.context import CryptContext
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -76,3 +76,7 @@ async def login(
         expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
