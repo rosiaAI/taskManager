@@ -1,27 +1,70 @@
 <template>
-  <div class="auth-container">
-    <h2>Регистрация</h2>
-    <form @submit.prevent="handleRegister">
-      <div class="form-group">
-        <label>Email:</label>
-        <input v-model="email" type="email" required>
-      </div>
+  <div class="auth-page">
+    <div class="auth-card">
+      <h2 class="auth-title">Создать аккаунт</h2>
 
-      <div class="form-group">
-        <label>Пароль:</label>
-        <input v-model="password" type="password" required>
-      </div>
+      <form @submit.prevent="handleRegister" class="auth-form">
+        <!-- Поле Email -->
+        <div class="form-group">
+          <label class="input-label">Email</label>
+          <input
+            v-model="form.email"
+            type="email"
+            class="input-field"
+            :class="{ 'invalid': errors.fields?.email }"
+            placeholder="example@mail.com"
+            @input="clearError('email')"
+          >
+          <transition name="fade">
+            <div v-if="errors.fields?.email" class="error-message">
+              {{ errors.fields.email[0] }}
+            </div>
+          </transition>
+        </div>
 
-      <button type="submit" class="btn-primary">Зарегистрироваться</button>
+        <!-- Поле Пароль -->
+        <div class="form-group">
+          <label class="input-label">Пароль</label>
+          <input
+            v-model="form.password"
+            type="password"
+            class="input-field"
+            :class="{ 'invalid': errors.fields?.password }"
+            placeholder="••••••••"
+            @input="clearError('password')"
+          >
+          <transition name="fade">
+            <div v-if="errors.fields?.password" class="error-message">
+              {{ errors.fields.password[0] }}
+            </div>
+          </transition>
+        </div>
 
-      <div v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
-      </div>
+        <!-- Кнопка регистрации -->
+        <button
+          type="submit"
+          class="btn-primary"
+          :disabled="loading"
+        >
+          <span v-if="loading" class="loader"></span>
+          {{ loading ? 'Регистрация...' : 'Зарегистрироваться' }}
+        </button>
 
-      <div class="auth-links">
-        Уже есть аккаунт? <router-link to="/frontend/vue-project/src/views/LoginPage">Войдите</router-link>
+        <!-- Ссылки -->
+        <div class="auth-links">
+          Уже есть аккаунт?
+          <router-link :to="{ name: 'Login' }" class="link">Войти</router-link>
+        </div>
+      </form>
+    </div>
+
+    <!-- Глобальные уведомления -->
+    <transition name="slide-fade">
+      <div v-if="errors.global" class="global-notification error">
+        {{ errors.global }}
+        <button @click="clearGlobalError" class="close-btn">×</button>
       </div>
-    </form>
+    </transition>
   </div>
 </template>
 
@@ -32,43 +75,298 @@ import { useRouter } from 'vue-router'
 
 export default {
   setup() {
-    const email = ref('')
-    const password = ref('')
-    const errorMessage = ref('')
     const store = useStore()
     const router = useRouter()
 
+    const form = ref({
+      email: '',
+      password: ''
+    })
+
+    const errors = ref({
+      global: null,
+      fields: null
+    })
+
+    const loading = ref(false)
+
+    const validateForm = () => {
+      const newErrors = {}
+      let isValid = true
+
+      if (!form.value.email) {
+        newErrors.email = ['Email обязателен для заполнения']
+        isValid = false
+      } else if (!/\S+@\S+\.\S+/.test(form.value.email)) {
+        newErrors.email = ['Введите корректный email']
+        isValid = false
+      }
+
+      if (!form.value.password) {
+        newErrors.password = ['Пароль обязателен для заполнения']
+        isValid = false
+      } else if (form.value.password.length < 6) {
+        newErrors.password = ['Пароль должен содержать минимум 6 символов']
+        isValid = false
+      }
+
+      if (Object.keys(newErrors).length > 0) {
+        errors.value.fields = newErrors
+      }
+
+      return isValid
+    }
+
     const handleRegister = async () => {
-      errorMessage.value = ''
+      if (!validateForm()) return
+
       try {
+        loading.value = true
+        clearErrors()
+
         await store.dispatch('register', {
-          email: email.value,
-          password: password.value
+          email: form.value.email,
+          password: form.value.password
         })
-        router.push('/tasks')
+        await router.push('/tasks')
       } catch (error) {
-        // Подробная обработка ошибок
-        if (error.response) {
-          const errors = error.response.data.errors
-          if (errors.email) {
-            errorMessage.value = errors.email[0]
-          } else if (errors.password) {
-            errorMessage.value = errors.password[0]
-          } else {
-            errorMessage.value = 'Ошибка регистрации'
-          }
-        } else {
-          errorMessage.value = 'Сервер недоступен'
-        }
+        handleError(error)
+      } finally {
+        loading.value = false
       }
     }
 
+    const handleError = (error) => {
+      clearErrors()
+
+      if (!error.response) {
+        errors.value.global = 'Ошибка соединения с сервером'
+        return
+      }
+
+      const { status, data } = error.response
+
+      switch (status) {
+        case 400:
+          if (data.detail) {
+            if (error.code === 'ERR_BAD_REQUEST'){
+              errors.value.global = 'Пользователь с таким email уже существует'
+            } else {
+              errors.value.global = data.detail
+            }
+          } else if (data.errors) {
+            errors.value.fields = data.errors
+          }
+          break
+        case 409:
+          errors.value.global = 'Пользователь с таким email уже существует'
+          break
+        case 422:
+          errors.value.fields = data.errors
+          break
+        case 500:
+          errors.value.global = 'Ошибка сервера. Попробуйте позже'
+          break
+        default:
+          errors.value.global = 'Произошла непредвиденная ошибка'
+      }
+
+      setTimeout(clearErrors, 7000)
+    }
+
+    const clearError = (field) => {
+      if (errors.value.fields?.[field]) {
+        delete errors.value.fields[field]
+      }
+    }
+
+    const clearGlobalError = () => {
+      errors.value.global = null
+    }
+
+    const clearErrors = () => {
+      errors.value.global = null
+      errors.value.fields = null
+    }
+
     return {
-      email,
-      password,
-      errorMessage,
-      handleRegister
+      form,
+      errors,
+      loading,
+      handleRegister,
+      clearError,
+      clearGlobalError
     }
   }
 }
 </script>
+
+<style scoped>
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  padding: 2rem;
+}
+
+.auth-card {
+  background: white;
+  padding: 2.5rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 400px;
+  transition: transform 0.3s ease;
+}
+
+.auth-title {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 2rem;
+  font-size: 1.8rem;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.input-label {
+  font-weight: 500;
+  color: #4a5568;
+  font-size: 0.9rem;
+}
+
+.input-field {
+  padding: 0.8rem 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.input-field.invalid {
+  border-color: #fc8181;
+  background-color: #fff5f5;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 0.8rem;
+  background-color: #42b983;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #3aa876;
+}
+
+.error-message {
+  color: #e53e3e;
+  font-size: 0.85rem;
+}
+
+.global-notification {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.loader {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+
+.auth-links {
+  text-align: center;
+  margin-top: 1rem;
+  color: #718096;
+  font-size: 0.9rem;
+}
+
+.link {
+  color: #42b983;
+  text-decoration: none;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.error-message {
+  color: #e53e3e;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  padding: 0.25rem 0;
+}
+
+.global-notification {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: 400px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.global-notification.error {
+  background: #fed7d7;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 1rem;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.loader {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>

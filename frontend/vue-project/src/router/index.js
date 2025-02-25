@@ -62,7 +62,7 @@ router.beforeEach(async (to) => {
   }
 
   // Редирект авторизованных пользователей
-  if (['Login', 'Register'].includes(to.name) && isAuthenticated) {
+  if (['Login', 'Register'].includes(to.name) && isAuthenticated && !isTokenExpired()) {
     return { name: 'Tasks' }
   }
 })

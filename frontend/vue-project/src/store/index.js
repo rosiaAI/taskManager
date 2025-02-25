@@ -51,7 +51,6 @@ const store = createStore({
       router.push('/login')
     },
     async register({ commit }, { email, password }) {
-      try {
         const formData = new URLSearchParams();
         formData.append("username", email);
         formData.append("password", password);
@@ -64,9 +63,6 @@ const store = createStore({
 
         const userResponse = await api.get('/auth/me');
         commit('SET_USER', userResponse.data);
-      } catch (error) {
-        throw new Error(error.response?.data?.detail || 'Registration failed');
-      }
     },
   },
   getters: {
